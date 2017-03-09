@@ -49,26 +49,53 @@ texturecollist = ['texture' + str(i+1) for i in range(64)]
 
 # Combine texture columns into a column of lists 
 
-train_df['texturevect'] = train_df[texturecollist].values.tolist()
-print(train_df.loc[:10, 'texturevect'])
+# Consolidation of columns into one column of arrays is unnecessary. The
+# following two lines of commented code can probably be removed. 
+# train_df['texturevect'] = train_df[texturecollist].values.tolist()
+# print(train_df.loc[:10, 'texturevect'])
 
 # Now do PCA decomposition on textures
-pca = decomposition.PCA(n_components = 2)
-texture_matrix = train_df[texturecollist].values
-pca.fit( texture_matrix )
-texture_matrix = pca.transform( texture_matrix )
-print(texture_matrix[:3] )
-for i in range(len(texture_matrix[0,:])):
-    colname = 'texture_pca' + str(i+1)
-    train_df[colname] = texture_matrix[:, i]
+# pca = decomposition.PCA(n_components = 2)
+# texture_matrix = train_df[texturecollist].values
+# pca.fit( train_df[texturecollist] )
+# texture_matrix = pca.transform( texture_matrix )
+# print(texture_matrix[:3] )
+# for i in range(len(texture_matrix[0,:])):
+#     colname = 'texture_pca' + str(i+1)
+#     train_df[colname] = texture_matrix[:, i]
+# 
+# print(seperator, 'Result of pca analysis of textures = \n', train_df.loc[:10, ['texture_pca1', 'texture_pca2']] )
+ 
+##################################################
 
-print(seperator, 'Result of pca analysis of textures = \n', train_df.loc[:10, ['texture_pca1', 'texture_pca2']] )
+def do_pca_of(df, name, ncomponents):
+    noutput = 2
+    collist = [name + str( i + 1) for i in range(ncomponents) ]
 
+    pca = decomposition.PCA(n_components = noutput)
+    pca.fit( df[collist] )
+    df[collist[:noutput]] = pca.transform( df[collist] )
+    df = df.drop(collist[noutput:], axis = 1)
+    return df
+
+# Now do PCA of shape vectors
+
+train_df = do_pca_of(train_df, 'texture', 64)
+train_df = do_pca_of(train_df, 'shape', 64)
+train_df = do_pca_of(train_df, 'margin', 64)
+
+print(seperator, 'After PCA, head of train_df is\n', train_df.head())
+
+### This is code for randomly reordering the species category as an attempt to
+### eliminate any correlation between graph coloring and the isoperimetric ratio.
+### Had problems getting it to change the order of the coloring on the seaborn graphs.
+### However, it is commented out right now, because the pairwise plot below for PCA values
+### of margin, shape, and texture benefits from this correlation.
 # Randomly shuffle order of species
-shuffle(speciesorder)
-print('New random order of species is\n', speciesorder[:10] )
-train_df['species'] = train_df['species'].cat.reorder_categories(speciesorder, ordered = True)
-train_df.sort_values(by = 'species')
+# shuffle(speciesorder)
+# print('New random order of species is\n', speciesorder[:10] )
+# train_df['species'] = train_df['species'].cat.reorder_categories(speciesorder, ordered = True)
+# train_df.sort_values(by = 'species')
 
 colordict = {}
 for i in range(len(speciesorder)):
@@ -77,12 +104,12 @@ for i in range(len(speciesorder)):
 plotcolors = train_df['species'].apply(lambda x: colordict[x]) 
 fig2 = plt.figure()
 ax2 = fig2.add_subplot(111, projection = '3d' )
-ax2.scatter(train_df['isopratio'], train_df['texture_pca1'], train_df['texture_pca2'], c = plotcolors)
+ax2.scatter(train_df['isopratio'], train_df['texture1'], train_df['texture2'], c = plotcolors)
 plt.show()
 
 # sns.set()
 plt.close()
-plot_df = train_df[['species', 'isopratio', 'texture_pca1', 'texture_pca2']]
+plot_df = train_df[['species', 'margin1', 'texture1', 'shape1']]
 plot_df.sort_values(by = 'species')
 ax = sns.pairplot(plot_df, hue = 'species')
 plt.show()
