@@ -2,7 +2,15 @@ import pandas as pd
 import seaborn as sns
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+
 from sklearn import decomposition
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.cross_validation import StratifiedShuffleSplit
+from sklearn.metrics import accuracy_score, log_loss
+from sklearn.neighbors import KNeighborsClassifier
+
 from random import shuffle
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -69,13 +77,15 @@ texturecollist = ['texture' + str(i+1) for i in range(64)]
 ##################################################
 
 def do_pca_of(df, name, ncomponents):
-    noutput = 2
+    noutput = 1
     collist = [name + str( i + 1) for i in range(ncomponents) ]
 
     pca = decomposition.PCA(n_components = noutput)
     pca.fit( df[collist] )
     df[collist[:noutput]] = pca.transform( df[collist] )
     df = df.drop(collist[noutput:], axis = 1)
+    
+    df[collist[:noutput]] = MinMaxScaler().fit_transform(df[ collist[:noutput] ]) 
     return df
 
 # Now do PCA of shape vectors
@@ -85,6 +95,43 @@ train_df = do_pca_of(train_df, 'shape', 64)
 train_df = do_pca_of(train_df, 'margin', 64)
 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
+
+# Now we need to encode the species category
+
+le = LabelEncoder().fit(train_df.species)
+labels = le.transform(train_df.species)
+# Now seperate data for cross validation
+
+sss = StratifiedShuffleSplit(labels, 10, test_size = 0.3, random_state = 17)
+for train_i, test_i in sss:
+    X_train, X_test = train_df.drop('species', axis = 1).values[train_i], train_df.drop('species', axis = 1).values[test_i]
+    y_train, y_test = labels[train_i], labels[test_i]
+
+print(seperator, 'X_train[:3] = \n', X_train[:3])
+print('y_train = \n', y_train[:3])
+
+# Now setup K Nearest Neighbors Classifier
+numneighbors = []
+acclist = []
+loglosslist = []
+
+for n_neighbors in range(1,10):
+    clf = KNeighborsClassifier(n_neighbors)
+    clf.fit(X_train, y_train)
+    testpredictions = clf.predict(X_test)
+    probpredictions = clf.predict_proba(X_test)
+
+    # Accuracy and LogLoss
+    acc = accuracy_score(y_test, testpredictions)
+    ll = log_loss(y_test, probpredictions)
+
+    numneighbors.append(n_neighbors)
+    acclist.append(acc)
+    loglosslist.append(ll)
+
+summary = np.array([numneighbors, acclist, loglosslist]).T
+print(seperator, 'Summary of accuracies for K Nearest Neighbors = \n', summary)
+
 
 ### This is code for randomly reordering the species category as an attempt to
 ### eliminate any correlation between graph coloring and the isoperimetric ratio.
@@ -104,12 +151,12 @@ for i in range(len(speciesorder)):
 plotcolors = train_df['species'].apply(lambda x: colordict[x]) 
 fig2 = plt.figure()
 ax2 = fig2.add_subplot(111, projection = '3d' )
-ax2.scatter(train_df['isopratio'], train_df['texture1'], train_df['texture2'], c = plotcolors)
+ax2.scatter(train_df['isopratio'], train_df['texture1'], train_df['shape1'], c = plotcolors)
 plt.show()
 
 # sns.set()
 plt.close()
 plot_df = train_df[['species', 'margin1', 'texture1', 'shape1']]
 plot_df.sort_values(by = 'species')
-ax = sns.pairplot(plot_df, hue = 'species')
-plt.show()
+# ax = sns.pairplot(plot_df, hue = 'species')
+# plt.show()
