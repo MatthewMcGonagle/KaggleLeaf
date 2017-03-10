@@ -76,8 +76,7 @@ texturecollist = ['texture' + str(i+1) for i in range(64)]
  
 ##################################################
 
-def do_pca_of(df, name, ncomponents):
-    noutput = 1
+def do_pca_of(df, name, ncomponents, noutput = 1):
     collist = [name + str( i + 1) for i in range(ncomponents) ]
 
     pca = decomposition.PCA(n_components = noutput)
@@ -90,9 +89,10 @@ def do_pca_of(df, name, ncomponents):
 
 # Now do PCA of shape vectors
 
-train_df = do_pca_of(train_df, 'texture', 64)
-train_df = do_pca_of(train_df, 'shape', 64)
-train_df = do_pca_of(train_df, 'margin', 64)
+noutput = 5
+train_df = do_pca_of(train_df, 'texture', 64, noutput)
+train_df = do_pca_of(train_df, 'shape', 64, noutput)
+train_df = do_pca_of(train_df, 'margin', 64, noutput)
 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
 
@@ -105,6 +105,8 @@ labels = le.transform(train_df.species)
 sss = StratifiedShuffleSplit(labels, 10, test_size = 0.3, random_state = 17)
 for train_i, test_i in sss:
     X_train, X_test = train_df.drop('species', axis = 1).values[train_i], train_df.drop('species', axis = 1).values[test_i]
+    X_train_noratio = train_df.drop(['species', 'isopratio'], axis = 1).values[train_i]
+    X_test_noratio =  train_df.drop(['species', 'isopratio'], axis = 1).values[test_i]
     y_train, y_test = labels[train_i], labels[test_i]
 
 print(seperator, 'X_train[:3] = \n', X_train[:3])
@@ -114,6 +116,8 @@ print('y_train = \n', y_train[:3])
 numneighbors = []
 acclist = []
 loglosslist = []
+acclist_noratio = []
+loglosslist_noratio = []
 
 for n_neighbors in range(1,10):
     clf = KNeighborsClassifier(n_neighbors)
@@ -125,12 +129,26 @@ for n_neighbors in range(1,10):
     acc = accuracy_score(y_test, testpredictions)
     ll = log_loss(y_test, probpredictions)
 
+    # Do without ratios
+    clf.fit(X_train_noratio, y_train)
+    testpredictions = clf.predict(X_test_noratio)
+    probpredictions = clf.predict_proba(X_test_noratio)
+
+    # Accuracy and LogLoss for no ratio
+    acc_noratio = accuracy_score(y_test, testpredictions)
+    ll_noratio = log_loss(y_test, probpredictions)
+
     numneighbors.append(n_neighbors)
     acclist.append(acc)
     loglosslist.append(ll)
+    acclist_noratio.append(acc_noratio)
+    loglosslist_noratio.append(ll_noratio)
 
 summary = np.array([numneighbors, acclist, loglosslist]).T
-print(seperator, 'Summary of accuracies for K Nearest Neighbors = \n', summary)
+print(seperator, 'Summary of accuracies for K Nearest Neighbors = \n[numneighbors, accuracy, logloss]\n', summary)
+
+summary = np.array([numneighbors, acclist_noratio, loglosslist_noratio]).T
+print('Summaries for K Nearest Neighbors without ratio = \n[numneighbors, accuracy, logloss]\n', summary)
 
 
 ### This is code for randomly reordering the species category as an attempt to
@@ -151,7 +169,7 @@ for i in range(len(speciesorder)):
 plotcolors = train_df['species'].apply(lambda x: colordict[x]) 
 fig2 = plt.figure()
 ax2 = fig2.add_subplot(111, projection = '3d' )
-ax2.scatter(train_df['isopratio'], train_df['texture1'], train_df['shape1'], c = plotcolors)
+ax2.scatter(train_df['margin1'], train_df['texture1'], train_df['shape1'], c = plotcolors)
 plt.show()
 
 # sns.set()
