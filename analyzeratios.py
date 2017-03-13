@@ -89,12 +89,16 @@ def do_pca_of(df, name, ncomponents, noutput = 1):
 
 # Now do PCA of shape vectors
 
-noutput = 5
+noutput = 3
 train_df = do_pca_of(train_df, 'texture', 64, noutput)
 train_df = do_pca_of(train_df, 'shape', 64, noutput)
 train_df = do_pca_of(train_df, 'margin', 64, noutput)
 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
+
+# Normalize isoperimetric ratios
+
+train_df['isopratio'] = MinMaxScaler().fit_transform(train_df['isopratio'])
 
 # Now we need to encode the species category
 
