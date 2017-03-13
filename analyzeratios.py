@@ -89,7 +89,7 @@ def do_pca_of(df, name, ncomponents, noutput = 1):
 
 # Now do PCA of shape vectors
 
-noutput = 3
+noutput = 5
 train_df = do_pca_of(train_df, 'texture', 64, noutput)
 train_df = do_pca_of(train_df, 'shape', 64, noutput)
 train_df = do_pca_of(train_df, 'margin', 64, noutput)
@@ -112,48 +112,54 @@ for train_i, test_i in sss:
     X_train_noratio = train_df.drop(['species', 'isopratio'], axis = 1).values[train_i]
     X_test_noratio =  train_df.drop(['species', 'isopratio'], axis = 1).values[test_i]
     y_train, y_test = labels[train_i], labels[test_i]
+    train_index = train_i
+    test_index = test_i
 
 print(seperator, 'X_train[:3] = \n', X_train[:3])
 print('y_train = \n', y_train[:3])
 
 # Now setup K Nearest Neighbors Classifier
-numneighbors = []
-acclist = []
-loglosslist = []
-acclist_noratio = []
-loglosslist_noratio = []
 
-for n_neighbors in range(1,10):
-    clf = KNeighborsClassifier(n_neighbors)
-    clf.fit(X_train, y_train)
-    testpredictions = clf.predict(X_test)
-    probpredictions = clf.predict_proba(X_test)
+predictioncols = ['npca', 'num_nbs', 'with_ratio', 'accuracy', 'logloss']
+predictions_df = pd.DataFrame(columns = predictioncols) 
+componentcols = []
+for ncomponents in range(noutput):
+    index = ncomponents + 1
+    componentcols.extend(['margin' + str(index), 'shape' + str(index), 'texture' + str(index)])    
 
-    # Accuracy and LogLoss
-    acc = accuracy_score(y_test, testpredictions)
-    ll = log_loss(y_test, probpredictions)
+    X_train_with = train_df[componentcols + ['isopratio']].values[train_index]
+    X_test_with = train_df[componentcols + ['isopratio']].values[test_index]
+    X_train_without = train_df[componentcols].values[train_index]
+    X_test_without = train_df[componentcols].values[test_index]
 
-    # Do without ratios
-    clf.fit(X_train_noratio, y_train)
-    testpredictions = clf.predict(X_test_noratio)
-    probpredictions = clf.predict_proba(X_test_noratio)
+    for n_neighbors in range(1,10):
+        clf = KNeighborsClassifier(n_neighbors)
+        clf.fit(X_train_with, y_train)
+        testpredictions = clf.predict(X_test_with)
+        probpredictions = clf.predict_proba(X_test_with)
+    
+        # Accuracy and LogLoss
+        acc = accuracy_score(y_test, testpredictions)
+        ll = log_loss(y_test, probpredictions)
+        newrow = [ncomponents + 1, n_neighbors, 'with', acc, ll]
+        newrow = pd.DataFrame([newrow], columns = predictioncols)
+        predictions_df = predictions_df.append(newrow, ignore_index = True)
+        
+    
+        # Do without ratios
+        clf.fit(X_train_without, y_train)
+        testpredictions = clf.predict(X_test_without)
+        probpredictions = clf.predict_proba(X_test_without)
+    
+        # Accuracy and LogLoss for no ratio
+        acc= accuracy_score(y_test, testpredictions)
+        ll = log_loss(y_test, probpredictions)
+        newrow = [ncomponents + 1, n_neighbors, 'without', acc, ll]
+        newrow = pd.DataFrame([newrow], columns = predictioncols)
+        predictions_df = predictions_df.append(newrow, ignore_index = True)
 
-    # Accuracy and LogLoss for no ratio
-    acc_noratio = accuracy_score(y_test, testpredictions)
-    ll_noratio = log_loss(y_test, probpredictions)
-
-    numneighbors.append(n_neighbors)
-    acclist.append(acc)
-    loglosslist.append(ll)
-    acclist_noratio.append(acc_noratio)
-    loglosslist_noratio.append(ll_noratio)
-
-summary = np.array([numneighbors, acclist, loglosslist]).T
-print(seperator, 'Summary of accuracies for K Nearest Neighbors = \n[numneighbors, accuracy, logloss]\n', summary)
-
-summary = np.array([numneighbors, acclist_noratio, loglosslist_noratio]).T
-print('Summaries for K Nearest Neighbors without ratio = \n[numneighbors, accuracy, logloss]\n', summary)
-
+predictions_groupby = predictions_df.groupby(['npca', 'num_nbs', 'with_ratio'])
+print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(0).unstack(1))
 
 ### This is code for randomly reordering the species category as an attempt to
 ### eliminate any correlation between graph coloring and the isoperimetric ratio.
