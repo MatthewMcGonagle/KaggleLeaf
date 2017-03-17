@@ -210,7 +210,7 @@ for ntexture, nshape, nmargin in npcas:
         predictions_df = predictions_df.append(newrow, ignore_index = True)
 
 predictions_groupby = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio'])
-print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(3).unstack(3))
+print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(4))
 
 ### This is code for randomly reordering the species category as an attempt to
 ### eliminate any correlation between graph coloring and the isoperimetric ratio.
@@ -235,7 +235,7 @@ plt.show()
 
 # sns.set()
 plt.close()
-plot_df = train_df[['species', 'margin1', 'texture1', 'shape1']]
+plot_df = train_df[['species', 'texture1', 'texture2', 'texture3']]
 plot_df.sort_values(by = 'species')
-# ax = sns.pairplot(plot_df, hue = 'species')
-# plt.show()
+ax = sns.pairplot(plot_df, hue = 'species')
+plt.show()
