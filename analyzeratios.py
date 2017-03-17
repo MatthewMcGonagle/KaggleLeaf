@@ -96,6 +96,12 @@ def keepncomponents(df, collist, ncomponents):
     collist = collist[:ncomponents]
     return df, collist
 
+def normalizeattribute(df, collist):
+    scaler = MinMaxScaler()
+    scaler.fit( df[collist[0]] ) 
+    df[collist] = scaler.transform(df[collist]) 
+    return df
+
 pca = decomposition.PCA()
 ncomponents = {} # Dictionary for how many components kept for each type of vector
 
@@ -110,7 +116,7 @@ plt.show()
 # Throw out low variance components and then rescale remaining
 ncomponents['texture'] = 4
 train_df, collist = keepncomponents(train_df, collist, ncomponents['texture'])
-train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
+train_df = normalizeattribute(train_df, collist) 
 
 
 # Do PCA of shape vectors
@@ -123,7 +129,7 @@ plt.show()
 
 ncomponents['shape'] = 2
 train_df, collist = keepncomponents(train_df, collist, ncomponents['shape'])
-train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
+train_df = normalizeattribute(train_df, collist) 
 
 # Do PCA of margin vectors
 
@@ -136,7 +142,8 @@ plt.show()
 
 ncomponents['margin'] = 6
 train_df, collist = keepncomponents(train_df, collist, ncomponents['margin'])
-train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
+train_df = normalizeattribute(train_df, collist) 
+
 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
 
@@ -230,7 +237,7 @@ for i in range(len(speciesorder)):
 plotcolors = train_df['species'].apply(lambda x: colordict[x]) 
 fig2 = plt.figure()
 ax2 = fig2.add_subplot(111, projection = '3d' )
-ax2.scatter(train_df['margin1'], train_df['texture1'], train_df['shape1'], c = plotcolors)
+ax2.scatter(train_df['texture1'], train_df['texture2'], train_df['texture3'], c = plotcolors)
 plt.show()
 
 # sns.set()
