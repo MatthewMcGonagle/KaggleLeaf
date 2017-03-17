@@ -105,21 +105,31 @@ def normalizeattribute(df, collist):
 pca = decomposition.PCA()
 ncomponents = {} # Dictionary for how many components kept for each type of vector
 
+variance_ratios = {}
+# Do PCA for each attribute, throw away unwanted components
+
+for name in ['texture', 'shape', 'margin']:
+    collist = getcollist(name, 64)
+    pca.fit(train_df[collist])
+    train_df[collist] = pca.transform( train_df[collist] )
+    variance_ratios[name] = pca.explained_variance_ratio_
+
+# Graph variance ratios of PCA for each attribute
+for series in variance_ratios.values():
+    plt.plot(series)
+plt.legend(variance_ratios.keys(), loc = 'upper right')
+plt.show()
+
+# Number of PCA components to keep for each attribute
 ncomponents['texture'] = 4
 ncomponents['shape'] = 2
 ncomponents['margin'] = 6
 
 for name in ['texture', 'shape', 'margin']:
     collist = getcollist(name, 64)
-    pca.fit(train_df[collist])
-    train_df[collist] = pca.transform( train_df[collist] )
-    variance_ratios = pca.explained_variance_ratio_
-    plt.plot(variance_ratios)
-    plt.show()
-
     train_df, collist = keepncomponents(train_df, collist, ncomponents[name])
     train_df = normalizeattribute(train_df, collist)
-    
+ 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
 
 # Normalize isoperimetric ratios
@@ -140,9 +150,6 @@ for train_i, test_i in sss:
     y_train, y_test = labels[train_i], labels[test_i]
     train_index = train_i
     test_index = test_i
-
-print(seperator, 'X_train[:3] = \n', X_train[:3])
-print('y_train = \n', y_train[:3])
 
 # Now setup K Nearest Neighbors Classifier
 
@@ -193,17 +200,6 @@ for ntexture, nshape, nmargin in npcas:
 
 predictions_groupby = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio'])
 print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(4))
-
-### This is code for randomly reordering the species category as an attempt to
-### eliminate any correlation between graph coloring and the isoperimetric ratio.
-### Had problems getting it to change the order of the coloring on the seaborn graphs.
-### However, it is commented out right now, because the pairwise plot below for PCA values
-### of margin, shape, and texture benefits from this correlation.
-# Randomly shuffle order of species
-# shuffle(speciesorder)
-# print('New random order of species is\n', speciesorder[:10] )
-# train_df['species'] = train_df['species'].cat.reorder_categories(speciesorder, ordered = True)
-# train_df.sort_values(by = 'species')
 
 colordict = {}
 for i in range(len(speciesorder)):
