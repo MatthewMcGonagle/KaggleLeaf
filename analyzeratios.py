@@ -105,46 +105,21 @@ def normalizeattribute(df, collist):
 pca = decomposition.PCA()
 ncomponents = {} # Dictionary for how many components kept for each type of vector
 
-# Do PCA of texture vectors 
-collist = getcollist('texture', 64)
-pca.fit( train_df[collist])
-train_df[collist] = pca.transform( train_df[collist] )
-variance_ratios = pca.explained_variance_ratio_
-plt.plot(variance_ratios)
-plt.show()
-
-# Throw out low variance components and then rescale remaining
 ncomponents['texture'] = 4
-train_df, collist = keepncomponents(train_df, collist, ncomponents['texture'])
-train_df = normalizeattribute(train_df, collist) 
-
-
-# Do PCA of shape vectors
-collist = getcollist('shape', 64)
-pca.fit(train_df[collist])
-train_df[collist] = pca.transform( train_df[collist] )
-variance_ratios = pca.explained_variance_ratio_
-plt.plot(variance_ratios)
-plt.show()
-
 ncomponents['shape'] = 2
-train_df, collist = keepncomponents(train_df, collist, ncomponents['shape'])
-train_df = normalizeattribute(train_df, collist) 
-
-# Do PCA of margin vectors
-
-collist = getcollist('margin', 64)
-pca.fit(train_df[collist])
-train_df[collist] = pca.transform( train_df[collist] )
-variance_ratios = pca.explained_variance_ratio_
-plt.plot(variance_ratios)
-plt.show()
-
 ncomponents['margin'] = 6
-train_df, collist = keepncomponents(train_df, collist, ncomponents['margin'])
-train_df = normalizeattribute(train_df, collist) 
 
+for name in ['texture', 'shape', 'margin']:
+    collist = getcollist(name, 64)
+    pca.fit(train_df[collist])
+    train_df[collist] = pca.transform( train_df[collist] )
+    variance_ratios = pca.explained_variance_ratio_
+    plt.plot(variance_ratios)
+    plt.show()
 
+    train_df, collist = keepncomponents(train_df, collist, ncomponents[name])
+    train_df = normalizeattribute(train_df, collist)
+    
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
 
 # Normalize isoperimetric ratios
