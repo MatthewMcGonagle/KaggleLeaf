@@ -76,23 +76,67 @@ texturecollist = ['texture' + str(i+1) for i in range(64)]
  
 ##################################################
 
-def do_pca_of(df, name, ncomponents, noutput = 1):
-    collist = [name + str( i + 1) for i in range(ncomponents) ]
+def do_pca_of(df, collist):
 
-    pca = decomposition.PCA(n_components = noutput)
+    pca = decomposition.PCA()
     pca.fit( df[collist] )
-    df[collist[:noutput]] = pca.transform( df[collist] )
-    df = df.drop(collist[noutput:], axis = 1)
+    df[collist] = pca.transform( df[collist] )
+    #df = df.drop(collist[noutput:], axis = 1)
     
-    df[collist[:noutput]] = MinMaxScaler().fit_transform(df[ collist[:noutput] ]) 
-    return df
+    # df[collist[:noutput]] = MinMaxScaler().fit_transform(df[ collist[:noutput] ]) 
+    return pca.explained_variance_ratio_
 
-# Now do PCA of shape vectors
+# Now do PCA of data vectors
 
-noutput = 5
-train_df = do_pca_of(train_df, 'texture', 64, noutput)
-train_df = do_pca_of(train_df, 'shape', 64, noutput)
-train_df = do_pca_of(train_df, 'margin', 64, noutput)
+def getcollist(name, ncomponents):
+    return [name + str(i + 1) for i in range(ncomponents)]
+
+def keepncomponents(df, collist, ncomponents):
+    df = df.drop( collist[ncomponents:], axis = 1 )
+    collist = collist[:ncomponents]
+    return df, collist
+
+pca = decomposition.PCA()
+ncomponents = {} # Dictionary for how many components kept for each type of vector
+
+# Do PCA of texture vectors 
+collist = getcollist('texture', 64)
+pca.fit( train_df[collist])
+train_df[collist] = pca.transform( train_df[collist] )
+variance_ratios = pca.explained_variance_ratio_
+plt.plot(variance_ratios)
+plt.show()
+
+# Throw out low variance components and then rescale remaining
+ncomponents['texture'] = 4
+train_df, collist = keepncomponents(train_df, collist, ncomponents['texture'])
+train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
+
+
+# Do PCA of shape vectors
+collist = getcollist('shape', 64)
+pca.fit(train_df[collist])
+train_df[collist] = pca.transform( train_df[collist] )
+variance_ratios = pca.explained_variance_ratio_
+plt.plot(variance_ratios)
+plt.show()
+
+ncomponents['shape'] = 2
+train_df, collist = keepncomponents(train_df, collist, ncomponents['shape'])
+train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
+
+# Do PCA of margin vectors
+
+collist = getcollist('margin', 64)
+pca.fit(train_df[collist])
+train_df[collist] = pca.transform( train_df[collist] )
+variance_ratios = pca.explained_variance_ratio_
+plt.plot(variance_ratios)
+plt.show()
+
+ncomponents['margin'] = 6
+train_df, collist = keepncomponents(train_df, collist, ncomponents['margin'])
+train_df[collist] = MinMaxScaler().fit_transform(train_df[collist])
 
 print(seperator, 'After PCA, head of train_df is\n', train_df.head())
 
@@ -120,12 +164,19 @@ print('y_train = \n', y_train[:3])
 
 # Now setup K Nearest Neighbors Classifier
 
-predictioncols = ['npca', 'num_nbs', 'with_ratio', 'accuracy', 'logloss']
+predictioncols = ['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio', 'accuracy', 'logloss']
 predictions_df = pd.DataFrame(columns = predictioncols) 
 componentcols = []
-for ncomponents in range(noutput):
-    index = ncomponents + 1
-    componentcols.extend(['margin' + str(index), 'shape' + str(index), 'texture' + str(index)])    
+noutput = 2
+npcas = [(ntexture, nshape, nmargin) 
+    for ntexture in range(ncomponents['texture']) 
+    for nshape in range(ncomponents['shape']) 
+    for nmargin in range(ncomponents['margin']) 
+    ]
+for ntexture, nshape, nmargin in npcas: 
+    componentcols = getcollist('texture', ntexture + 1) 
+    componentcols.extend(getcollist('shape', nshape + 1))
+    componentcols.extend(getcollist('margin', nmargin + 1))
 
     X_train_with = train_df[componentcols + ['isopratio']].values[train_index]
     X_test_with = train_df[componentcols + ['isopratio']].values[test_index]
@@ -141,7 +192,7 @@ for ncomponents in range(noutput):
         # Accuracy and LogLoss
         acc = accuracy_score(y_test, testpredictions)
         ll = log_loss(y_test, probpredictions)
-        newrow = [ncomponents + 1, n_neighbors, 'with', acc, ll]
+        newrow = [ntexture + 1, nshape + 1, nmargin + 1, n_neighbors, 'with', acc, ll]
         newrow = pd.DataFrame([newrow], columns = predictioncols)
         predictions_df = predictions_df.append(newrow, ignore_index = True)
         
@@ -154,12 +205,12 @@ for ncomponents in range(noutput):
         # Accuracy and LogLoss for no ratio
         acc= accuracy_score(y_test, testpredictions)
         ll = log_loss(y_test, probpredictions)
-        newrow = [ncomponents + 1, n_neighbors, 'without', acc, ll]
+        newrow = [ntexture + 1, nshape + 1, nmargin + 1, n_neighbors, 'without', acc, ll]
         newrow = pd.DataFrame([newrow], columns = predictioncols)
         predictions_df = predictions_df.append(newrow, ignore_index = True)
 
-predictions_groupby = predictions_df.groupby(['npca', 'num_nbs', 'with_ratio'])
-print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(0).unstack(1))
+predictions_groupby = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio'])
+print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(3).unstack(3))
 
 ### This is code for randomly reordering the species category as an attempt to
 ### eliminate any correlation between graph coloring and the isoperimetric ratio.
