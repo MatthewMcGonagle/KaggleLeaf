@@ -33,6 +33,12 @@ print(ratios_df[:10])
 train_df = pd.concat([train_df, ratios_df], axis = 1, join_axes = [train_df.index])
 print(seperator, 'After adding ratios column, training data is\n', train_df[:10])
 
+# Now we need to encode the species category
+
+le = LabelEncoder().fit(train_df.species)
+train_df['species'] = le.transform(train_df.species)
+
+
 traingroups = train_df.groupby('species').mean()
 traingroups = traingroups.sort_values(by = 'isopratio', ascending = 1)
 print(seperator, 'After grouping by species and reordering, traingroups = \n', traingroups[:10])
@@ -54,37 +60,6 @@ plt.show()
 print(seperator, 'Look at some texture columns')
 print(train_df.loc[:10, ['texture1', 'texture2']] )
 texturecollist = ['texture' + str(i+1) for i in range(64)]
-
-# Combine texture columns into a column of lists 
-
-# Consolidation of columns into one column of arrays is unnecessary. The
-# following two lines of commented code can probably be removed. 
-# train_df['texturevect'] = train_df[texturecollist].values.tolist()
-# print(train_df.loc[:10, 'texturevect'])
-
-# Now do PCA decomposition on textures
-# pca = decomposition.PCA(n_components = 2)
-# texture_matrix = train_df[texturecollist].values
-# pca.fit( train_df[texturecollist] )
-# texture_matrix = pca.transform( texture_matrix )
-# print(texture_matrix[:3] )
-# for i in range(len(texture_matrix[0,:])):
-#     colname = 'texture_pca' + str(i+1)
-#     train_df[colname] = texture_matrix[:, i]
-# 
-# print(seperator, 'Result of pca analysis of textures = \n', train_df.loc[:10, ['texture_pca1', 'texture_pca2']] )
- 
-##################################################
-
-def do_pca_of(df, collist):
-
-    pca = decomposition.PCA()
-    pca.fit( df[collist] )
-    df[collist] = pca.transform( df[collist] )
-    #df = df.drop(collist[noutput:], axis = 1)
-    
-    # df[collist[:noutput]] = MinMaxScaler().fit_transform(df[ collist[:noutput] ]) 
-    return pca.explained_variance_ratio_
 
 # Now do PCA of data vectors
 
@@ -130,24 +105,25 @@ for name in ['texture', 'shape', 'margin']:
     train_df, collist = keepncomponents(train_df, collist, ncomponents[name])
     train_df = normalizeattribute(train_df, collist)
  
-print(seperator, 'After PCA, head of train_df is\n', train_df.head())
+print(seperator, 'After PCA, head of train_df is\n', train_df[:10])
 
 # Normalize isoperimetric ratios
 
 train_df['isopratio'] = MinMaxScaler().fit_transform(train_df['isopratio'])
 
-# Now we need to encode the species category
+# # Now we need to encode the species category
+# 
+# le = LabelEncoder().fit(train_df.species)
+# train_df['species'] = le.transform(train_df.species)
 
-le = LabelEncoder().fit(train_df.species)
-labels = le.transform(train_df.species)
 # Now seperate data for cross validation
 
-sss = StratifiedShuffleSplit(labels, 10, test_size = 0.3, random_state = 17)
+sss = StratifiedShuffleSplit(train_df['species'].values, 10, test_size = 0.3, random_state = 17)
 for train_i, test_i in sss:
     X_train, X_test = train_df.drop('species', axis = 1).values[train_i], train_df.drop('species', axis = 1).values[test_i]
     X_train_noratio = train_df.drop(['species', 'isopratio'], axis = 1).values[train_i]
     X_test_noratio =  train_df.drop(['species', 'isopratio'], axis = 1).values[test_i]
-    y_train, y_test = labels[train_i], labels[test_i]
+    y_train, y_test = train_df['species'].values[train_i], train_df['species'].values[test_i]
     train_index = train_i
     test_index = test_i
 
@@ -213,7 +189,10 @@ plt.show()
 
 # sns.set()
 plt.close()
-plot_df = train_df[['species', 'texture1', 'texture2', 'texture3']]
+varstoplot = ['texture1', 'texture2', 'texture3']
+allvars = varstoplot.copy()
+allvars.append('species')
+plot_df = train_df[allvars]
 plot_df.sort_values(by = 'species')
-ax = sns.pairplot(plot_df, hue = 'species')
+ax = sns.pairplot(plot_df, hue = 'species', vars = varstoplot) 
 plt.show()
