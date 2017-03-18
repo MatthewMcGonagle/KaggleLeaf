@@ -38,6 +38,25 @@ print(seperator, 'After adding ratios column, training data is\n', train_df[:10]
 le = LabelEncoder().fit(train_df.species)
 train_df['species'] = le.transform(train_df.species)
 
+# Now seperate data for cross validation
+
+sss = StratifiedShuffleSplit(train_df['species'].values, 10, test_size = 0.3, random_state = 17)
+for train_i, test_i in sss:
+    # X_train, X_test = train_df.drop('species', axis = 1).values[train_i], train_df.drop('species', axis = 1).values[test_i]
+    # X_train_noratio = train_df.drop(['species', 'isopratio'], axis = 1).values[train_i]
+    # X_test_noratio =  train_df.drop(['species', 'isopratio'], axis = 1).values[test_i]
+    # y_train, y_test = train_df['species'].values[train_i], train_df['species'].values[test_i]
+    train_index = train_i
+    test_index = test_i
+
+test_df = train_df.iloc[test_index]
+train_df = train_df.iloc[train_index]
+y_train = train_df['species'].values
+y_test = test_df['species'].values
+print(seperator, 'After cross validation separation, description of the training data = \n', train_df.describe())
+print('Now, the test data = \n', test_df.describe())
+
+# Order the species by increasing mean isoperimetric ratio
 
 traingroups = train_df.groupby('species').mean()
 traingroups = traingroups.sort_values(by = 'isopratio', ascending = 1)
@@ -51,15 +70,9 @@ train_df['species'] = train_df['species'].cat.set_categories(speciesorder, order
 # Plot species on x-axis and ratios on y-axis. Categories appear in the order we specified above.
 # Therefore, they appear in order of increasing mean ratio.
 
-print(seperator, 'Training Data set after attaching ordering\n', train_df[:10])
+print(seperator, 'Training Data indices after attaching ordering\n', train_df.index[:10])
 ax = sns.stripplot(x = 'species', y = 'isopratio', data = train_df)
 plt.show()
-
-# Now do PCA on texturedata
-
-print(seperator, 'Look at some texture columns')
-print(train_df.loc[:10, ['texture1', 'texture2']] )
-texturecollist = ['texture' + str(i+1) for i in range(64)]
 
 # Now do PCA of data vectors
 
@@ -86,8 +99,9 @@ variance_ratios = {}
 for name in ['texture', 'shape', 'margin']:
     collist = getcollist(name, 64)
     pca.fit(train_df[collist])
-    train_df[collist] = pca.transform( train_df[collist] )
     variance_ratios[name] = pca.explained_variance_ratio_
+    train_df[collist] = pca.transform( train_df[collist] )
+    test_df[collist] = pca.transform( test_df[collist] )
 
 # Graph variance ratios of PCA for each attribute
 for series in variance_ratios.values():
@@ -104,28 +118,16 @@ for name in ['texture', 'shape', 'margin']:
     collist = getcollist(name, 64)
     train_df, collist = keepncomponents(train_df, collist, ncomponents[name])
     train_df = normalizeattribute(train_df, collist)
+    test_df, collist = keepncomponents(test_df, collist, ncomponents[name])
+    test_df = normalizeattribute(test_df, collist)
  
 print(seperator, 'After PCA, head of train_df is\n', train_df[:10])
 
 # Normalize isoperimetric ratios
 
-train_df['isopratio'] = MinMaxScaler().fit_transform(train_df['isopratio'])
-
-# # Now we need to encode the species category
-# 
-# le = LabelEncoder().fit(train_df.species)
-# train_df['species'] = le.transform(train_df.species)
-
-# Now seperate data for cross validation
-
-sss = StratifiedShuffleSplit(train_df['species'].values, 10, test_size = 0.3, random_state = 17)
-for train_i, test_i in sss:
-    X_train, X_test = train_df.drop('species', axis = 1).values[train_i], train_df.drop('species', axis = 1).values[test_i]
-    X_train_noratio = train_df.drop(['species', 'isopratio'], axis = 1).values[train_i]
-    X_test_noratio =  train_df.drop(['species', 'isopratio'], axis = 1).values[test_i]
-    y_train, y_test = train_df['species'].values[train_i], train_df['species'].values[test_i]
-    train_index = train_i
-    test_index = test_i
+isopscaler = MinMaxScaler()
+train_df['isopratio'] = isopscaler.fit_transform(train_df['isopratio'])
+test_df['isopratio'] = isopscaler.transform(test_df['isopratio'])
 
 # Now setup K Nearest Neighbors Classifier
 
@@ -134,19 +136,20 @@ predictions_df = pd.DataFrame(columns = predictioncols)
 componentcols = []
 noutput = 2
 npcas = [(ntexture, nshape, nmargin) 
-    for ntexture in range(ncomponents['texture']) 
-    for nshape in range(ncomponents['shape']) 
-    for nmargin in range(ncomponents['margin']) 
+    for ntexture in range(1,ncomponents['texture'] + 1) 
+    for nshape in range(1,ncomponents['shape'] + 1) 
+    for nmargin in range(1,ncomponents['margin'] + 1) 
     ]
-for ntexture, nshape, nmargin in npcas: 
-    componentcols = getcollist('texture', ntexture + 1) 
-    componentcols.extend(getcollist('shape', nshape + 1))
-    componentcols.extend(getcollist('margin', nmargin + 1))
 
-    X_train_with = train_df[componentcols + ['isopratio']].values[train_index]
-    X_test_with = train_df[componentcols + ['isopratio']].values[test_index]
-    X_train_without = train_df[componentcols].values[train_index]
-    X_test_without = train_df[componentcols].values[test_index]
+for ntexture, nshape, nmargin in npcas: 
+    componentcols = getcollist('texture', ntexture) 
+    componentcols.extend(getcollist('shape', nshape))
+    componentcols.extend(getcollist('margin', nmargin))
+
+    X_train_with = train_df[componentcols + ['isopratio']].values
+    X_test_with = test_df[componentcols + ['isopratio']].values
+    X_train_without = train_df[componentcols].values
+    X_test_without = test_df[componentcols].values
 
     for n_neighbors in range(1,10):
         clf = KNeighborsClassifier(n_neighbors)
@@ -157,7 +160,7 @@ for ntexture, nshape, nmargin in npcas:
         # Accuracy and LogLoss
         acc = accuracy_score(y_test, testpredictions)
         ll = log_loss(y_test, probpredictions)
-        newrow = [ntexture + 1, nshape + 1, nmargin + 1, n_neighbors, 'with', acc, ll]
+        newrow = [ntexture, nshape, nmargin, n_neighbors, 'with', acc, ll]
         newrow = pd.DataFrame([newrow], columns = predictioncols)
         predictions_df = predictions_df.append(newrow, ignore_index = True)
         
@@ -170,29 +173,28 @@ for ntexture, nshape, nmargin in npcas:
         # Accuracy and LogLoss for no ratio
         acc= accuracy_score(y_test, testpredictions)
         ll = log_loss(y_test, probpredictions)
-        newrow = [ntexture + 1, nshape + 1, nmargin + 1, n_neighbors, 'without', acc, ll]
+        newrow = [ntexture, nshape, nmargin, n_neighbors, 'without', acc, ll]
         newrow = pd.DataFrame([newrow], columns = predictioncols)
         predictions_df = predictions_df.append(newrow, ignore_index = True)
 
 predictions_groupby = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio'])
 print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(4))
 
+# Make 3d scatterplot
 colordict = {}
 for i in range(len(speciesorder)):
     colordict[speciesorder[i]] = i
 
+varstoplot = ['texture1', 'texture2', 'texture3']
 plotcolors = train_df['species'].apply(lambda x: colordict[x]) 
 fig2 = plt.figure()
 ax2 = fig2.add_subplot(111, projection = '3d' )
-ax2.scatter(train_df['texture1'], train_df['texture2'], train_df['texture3'], c = plotcolors)
+ax2.scatter(train_df[varstoplot[0]], train_df[varstoplot[1]], train_df[varstoplot[2]], c = plotcolors)
 plt.show()
 
-# sns.set()
-plt.close()
+# Now make pair plot
 varstoplot = ['texture1', 'texture2', 'texture3']
-allvars = varstoplot.copy()
-allvars.append('species')
-plot_df = train_df[allvars]
+plot_df = train_df[varstoplot + ['species'] ]
 plot_df.sort_values(by = 'species')
 ax = sns.pairplot(plot_df, hue = 'species', vars = varstoplot) 
 plt.show()
