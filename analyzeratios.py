@@ -14,6 +14,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from random import shuffle
 from mpl_toolkits.mplot3d import Axes3D
 
+#pd.options.display.float_format = '{:,.3f}'.format
+myformat = '{:.3f}'.format
 seperator = '\n-------------------------\n'
 
 ratios_df = pd.read_csv('ratiostest.csv')
@@ -177,8 +179,16 @@ for ntexture, nshape, nmargin in npcas:
         newrow = pd.DataFrame([newrow], columns = predictioncols)
         predictions_df = predictions_df.append(newrow, ignore_index = True)
 
-predictions_groupby = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio'])
-print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_groupby.mean().unstack(4))
+predictions_df = predictions_df.groupby(['ntexture', 'nshape', 'nmargin', 'num_nbs', 'with_ratio']).mean()
+predictions_df = predictions_df.unstack(4) 
+predictions_df['logloss', 'improvement'] = predictions_df['logloss','without'] - predictions_df['logloss','with']
+
+print(seperator, 'Summary of accuracies of K Nearest Neighbors For With and Without Isoperimetric Ratios:\n', predictions_df.applymap(myformat)) 
+
+best_df = predictions_df[predictions_df['logloss', 'with'] < 1.0]
+print(seperator, 'Summary of logloss less than 1.0\n', best_df.applymap(myformat) )
+best_df = best_df.sort_values( [('logloss', 'with')] )
+print(seperator, 'Now sorted by logloss with isoperimetric ratios\n', best_df.applymap(myformat) )
 
 # Make 3d scatterplot
 colordict = {}
