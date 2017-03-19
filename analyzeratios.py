@@ -16,7 +16,14 @@ from mpl_toolkits.mplot3d import Axes3D
 
 #pd.options.display.float_format = '{:,.3f}'.format
 myformat = '{:.3f}'.format
-seperator = '\n-------------------------\n'
+
+def myformat(x):
+    if isinstance(x, str):
+        return [x]
+    else:
+        return '{:.3f}'.format(x)
+
+seperator = '\n' + ('-'*80) + '\n'
 
 ratios_df = pd.read_csv('ratiostest.csv')
 train_df = pd.read_csv('Data/train.csv')
@@ -25,15 +32,15 @@ train_df = pd.read_csv('Data/train.csv')
 train_df = train_df.set_index('id')
 print(seperator, 'Training Data Set Info')
 print(train_df.info())
-print(train_df[:10])
+print(train_df[:10].applymap(myformat))
 
 ratios_df = ratios_df.set_index('id')
 print(seperator, 'Ratios Data Set Info')
 print(ratios_df.info())
-print(ratios_df[:10])
+print(ratios_df[:10].applymap(myformat))
 
 train_df = pd.concat([train_df, ratios_df], axis = 1, join_axes = [train_df.index])
-print(seperator, 'After adding ratios column, training data is\n', train_df[:10])
+print(seperator, 'After adding ratios column, training data is\n', train_df[:10].applymap(myformat))
 
 # Now we need to encode the species category
 
@@ -55,14 +62,14 @@ test_df = train_df.iloc[test_index]
 train_df = train_df.iloc[train_index]
 y_train = train_df['species'].values
 y_test = test_df['species'].values
-print(seperator, 'After cross validation separation, description of the training data = \n', train_df.describe())
-print('Now, the test data = \n', test_df.describe())
+print(seperator, 'After cross validation separation, description of the training data = \n', train_df.applymap(myformat).describe())
+print('After cross validation separation, description of the test data = \n', test_df.applymap(myformat).describe())
 
 # Order the species by increasing mean isoperimetric ratio
 
 traingroups = train_df.groupby('species').mean()
 traingroups = traingroups.sort_values(by = 'isopratio', ascending = 1)
-print(seperator, 'After grouping by species and reordering, traingroups = \n', traingroups[:10])
+print(seperator, 'After grouping by species and reordering, traingroups = \n', traingroups.applymap(myformat)[:10])
 speciesorder = traingroups.index.values
 print('Order of species is\n', speciesorder[:10])
 
@@ -72,7 +79,7 @@ train_df['species'] = train_df['species'].cat.set_categories(speciesorder, order
 # Plot species on x-axis and ratios on y-axis. Categories appear in the order we specified above.
 # Therefore, they appear in order of increasing mean ratio.
 
-print(seperator, 'Training Data indices after attaching ordering\n', train_df.index[:10])
+print(seperator, 'Training Data indices after attaching ordering\n', train_df.applymap(myformat).index[:10])
 ax = sns.stripplot(x = 'species', y = 'isopratio', data = train_df)
 plt.show()
 
@@ -123,7 +130,7 @@ for name in ['texture', 'shape', 'margin']:
     test_df, collist = keepncomponents(test_df, collist, ncomponents[name])
     test_df = normalizeattribute(test_df, collist)
  
-print(seperator, 'After PCA, head of train_df is\n', train_df[:10])
+print(seperator, 'After PCA, head of train_df is\n', train_df.applymap(myformat)[:10])
 
 # Normalize isoperimetric ratios
 
