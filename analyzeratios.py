@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from sklearn import decomposition
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import (LabelEncoder, MinMaxScaler, PolynomialFeatures)
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score, log_loss
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline 
+from sklearn.linear_model import LinearRegression
 
 from random import shuffle
 from mpl_toolkits.mplot3d import Axes3D
@@ -135,8 +136,29 @@ print(seperator, 'After PCA, head of train_df is\n', train_df.applymap(myformat)
 # Normalize isoperimetric ratios
 
 isopscaler = MinMaxScaler()
-train_df['isopratio'] = isopscaler.fit_transform(train_df['isopratio'])
-test_df['isopratio'] = isopscaler.transform(test_df['isopratio'])
+train_df['isopratio'] = isopscaler.fit_transform(train_df['isopratio'].values.reshape(-1, 1))
+test_df['isopratio'] = isopscaler.transform(test_df['isopratio'].values.reshape(-1, 1))
+
+
+# Do Quadratic Fit for Texture Components
+
+quadn = {}
+quadn['texture'] = 2
+model = {}
+for name in ['texture2', 'texture3', 'texture4']:
+    model[name] = Pipeline([('polynomial_features', PolynomialFeatures(2)), ('linear_regression', LinearRegression())])
+    model[name].fit(train_df['texture1'].to_frame(), train_df[name].to_frame())
+    train_df[name + 'fit'] = model[name].predict(train_df['texture1'].to_frame())
+    test_df[name + 'fit'] = model[name].predict(test_df['texture1'].to_frame())
+
+for name, color in zip(['texture2', 'texture3', 'texture4'], ['blue', 'black', 'purple']):
+    plt.scatter(train_df['texture1'].values, train_df[name].values, color = color )
+    plt.scatter(train_df['texture1'].values, train_df[name + 'fit'].values, color = 'red')
+plt.show()
+
+for name in ['texture2', 'texture3', 'texture4']:
+    train_df[name] = train_df[name] - train_df[name + 'fit']
+    test_df[name] = test_df[name] - test_df[name + 'fit']
 
 # Now setup K Nearest Neighbors Classifier
 
