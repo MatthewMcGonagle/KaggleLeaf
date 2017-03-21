@@ -127,9 +127,14 @@ ncomponents['margin'] = 6
 for name in ['texture', 'shape', 'margin']:
     collist = getcollist(name, 64)
     train_df, collist = keepncomponents(train_df, collist, ncomponents[name])
-    train_df = normalizeattribute(train_df, collist)
+    # train_df = normalizeattribute(train_df, collist)
     test_df, collist = keepncomponents(test_df, collist, ncomponents[name])
-    test_df = normalizeattribute(test_df, collist)
+    # test_df = normalizeattribute(test_df, collist)
+    scaler = MinMaxScaler()
+    scaler.fit(train_df[collist[0]].to_frame())
+    train_df[collist] = scaler.transform(train_df[collist])
+    test_df[collist] = scaler.transform(test_df[collist])
+    
  
 print(seperator, 'After PCA, head of train_df is\n', train_df.applymap(myformat)[:10])
 
@@ -144,21 +149,62 @@ test_df['isopratio'] = isopscaler.transform(test_df['isopratio'].values.reshape(
 
 quadn = {}
 quadn['texture'] = 2
-model = {}
-for name in ['texture2', 'texture3', 'texture4']:
-    model[name] = Pipeline([('polynomial_features', PolynomialFeatures(2)), ('linear_regression', LinearRegression())])
-    model[name].fit(train_df['texture1'].to_frame(), train_df[name].to_frame())
-    train_df[name + 'fit'] = model[name].predict(train_df['texture1'].to_frame())
-    test_df[name + 'fit'] = model[name].predict(test_df['texture1'].to_frame())
+quadfitcols = ['texture2', 'texture3']
+newquadcols = [name + 'fit' for name in quadfitcols]
+print(newquadcols)
+model = Pipeline([ ('polynomial_features', PolynomialFeatures(2)),
+                   ('linear_regression', LinearRegression())
+                 ] )
+model.fit(train_df['texture1'].to_frame(), train_df[quadfitcols] )
+predictresults = model.predict(train_df['texture1'].to_frame())
+for newseries, newvalues in zip(newquadcols, predictresults.T[:]):
+    train_df[newseries] = newvalues
+predictresults = model.predict(test_df['texture1'].to_frame())
+for newseries, newvalues in zip(newquadcols, predictresults.T[:]):
+    test_df[newseries] = newvalues
 
-for name, color in zip(['texture2', 'texture3', 'texture4'], ['blue', 'black', 'purple']):
+# Now get info for computing arclength
+print('Linear Regression Coefficients Shape = ', model.named_steps['linear_regression'].coef_.shape)
+quadcoeff = model.named_steps['linear_regression'].coef_.T # Shape is now (n_features, n_targets)
+arclengthparam = np.zeros(3)
+arclengthparam[2] = np.linalg.norm(quadcoeff[2])
+dotAB = np.dot(quadcoeff[2], quadcoeff[1])
+arclengthparam[1] = dotAB * 0.5 / arclengthparam[2]**2
+arclengthparam[0] = 1.0 + np.linalg.norm(quadcoeff[1])**2 - dotAB**2 * arclengthparam[2]**-2.0
+print('Before square root, arclengthparam[0] = ', arclengthparam[0])
+arclengthparam[0] = np.sqrt(arclengthparam[0])
+print('arclengthparam = \n', arclengthparam)
+
+def antideriv(x): # This is the anti-deriv of sqrt(1 + x**2) which is used to compute arclength
+    result = x * np.sqrt(1 + x**2) + np.arcsinh(x)
+    return result * 0.5
+
+def getarclength(x, arclengthparam):
+    u1 = arclengthparam[1] * 2 * arclengthparam[2] / arclengthparam[0]
+    u2 = u1 + x * 2 * arclengthparam[2] / arclengthparam[0]
+    result = antideriv(u2) - antideriv(u1)
+    result *= arclengthparam[0]**2 * 0.5 / arclengthparam[2]
+    return result
+
+# Transform train_df['texture1'] into arclength along fitted curve
+train_df['texture1'] = train_df['texture1'].apply(lambda x: getarclength(x, arclengthparam) )    
+test_df['texture1'] = test_df['texture1'].apply(lambda x: getarclength(x, arclengthparam) )    
+    
+for name, color in zip(quadfitcols, ['blue', 'black', 'purple']):
     plt.scatter(train_df['texture1'].values, train_df[name].values, color = color )
     plt.scatter(train_df['texture1'].values, train_df[name + 'fit'].values, color = 'red')
 plt.show()
 
-for name in ['texture2', 'texture3', 'texture4']:
+for name in quadfitcols: 
     train_df[name] = train_df[name] - train_df[name + 'fit']
     test_df[name] = test_df[name] - test_df[name + 'fit']
+
+# Need to renormalize texture features using 'texture1'
+collist = getcollist('texture', ncomponents['texture'])
+scaler = MinMaxScaler()
+scaler.fit(train_df['texture1'])
+train_df[collist] = scaler.transform(train_df[collist])
+test_df[collist] = scaler.transform(test_df[collist])
 
 # Now setup K Nearest Neighbors Classifier
 
