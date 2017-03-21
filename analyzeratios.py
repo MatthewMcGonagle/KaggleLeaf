@@ -202,7 +202,7 @@ for name in quadfitcols:
 # Need to renormalize texture features using 'texture1'
 collist = getcollist('texture', ncomponents['texture'])
 scaler = MinMaxScaler()
-scaler.fit(train_df['texture1'])
+scaler.fit(train_df['texture1'].to_frame())
 train_df[collist] = scaler.transform(train_df[collist])
 test_df[collist] = scaler.transform(test_df[collist])
 
