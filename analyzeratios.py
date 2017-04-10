@@ -212,11 +212,12 @@ for point in projdiff:
     else:
         projerror.append(-size)
 
-train_df['texture5'] = projerror
-ncomponents['texture'] = 5
+# train_df['texture5'] = projerror
+# ncomponents['texture'] = 5
+train_df['texture3'] = projerror
 
 projpoints = projpoints.T
-for i in range(len(projpoints)):
+for i in range(len(projpoints) - 1):
     train_df['texture' + str(i+1)] = projpoints[i] 
 
 # Now do for test data
@@ -243,13 +244,13 @@ for point in projdiff:
     else:
         projerror.append(-size)
 
-test_df['texture5'] = projerror
-ncomponents['texture'] = 5
-
+# test_df['texture5'] = projerror
+# ncomponents['texture'] = 5
+test_df['texture3'] = projerror
 
 projpoints = projpoints.T
 print('projpoints shape = ', projpoints.shape)
-for i in range(len(projpoints)):
+for i in range(len(projpoints) - 1):
     test_df['texture' + str(i+1)] = projpoints[i] 
 
 # This is the quadratic fit based on a curve. Other section contains fit based on surface.
